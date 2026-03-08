@@ -1,7 +1,10 @@
+"""Main Streamlit verification dashboard for Omega Automation."""
+
 from __future__ import annotations
 
 import streamlit as st
 
+from OmegaAutomation.ai.openai_client import OpenAITextService
 from OmegaAutomation.automation.platform import (
     AffiliateProductEngine,
     AppIdeaGenerator,
@@ -12,20 +15,30 @@ from OmegaAutomation.automation.platform import (
     TrendEngine,
     VideoFactory,
 )
+from OmegaAutomation.integrations.youtube import YouTubeUploader
+from OmegaAutomation.security.auth import DashboardAuth
 
 st.set_page_config(page_title="Omega Automation Dashboard", layout="wide")
 st.title("Omega Automation - Verification Dashboard")
 
+# Enforce login before showing production features.
+auth = DashboardAuth()
+if not auth.require_login():
+    st.stop()
+
 store = ContentStatusStore()
+text_service = OpenAITextService()
 trend_engine = TrendEngine()
-video_factory = VideoFactory()
+video_factory = VideoFactory(text_service=text_service)
 shorts_factory = ShortsFactory()
-social_pipeline = SocialMediaPipeline()
+social_pipeline = SocialMediaPipeline(text_service=text_service)
 book_factory = BookFactory()
 app_idea_generator = AppIdeaGenerator()
 affiliate_engine = AffiliateProductEngine()
+youtube_uploader = YouTubeUploader()
 
 st.sidebar.header("System Modules")
+st.sidebar.caption(f"OpenAI API key loaded: {'Yes' if text_service.key_configured() else 'No (using fallback mode)'}")
 st.sidebar.write(
     """
 - TREND ENGINE
@@ -35,6 +48,7 @@ st.sidebar.write(
 - BOOK FACTORY
 - APP IDEA GENERATOR
 - AFFILIATE PRODUCT ENGINE
+- YOUTUBE UPLOAD SIMULATOR
 """
 )
 
@@ -77,8 +91,14 @@ with tab_video:
     if st.button("Generate video and short"):
         video_path = video_factory.build_video(script_input)
         short_result = shorts_factory.create_short("Automation highlights")
+        upload_result = youtube_uploader.simulate_upload(
+            title="Automation video",
+            video_path=video_path,
+            description="Simulated upload from Omega dashboard",
+        )
         st.success(f"Video build placeholder written to: {video_path}")
         st.info(short_result)
+        st.json(upload_result)
         store.add_entry("video", "Automation video", "built", f"Video path: {video_path}")
 
 with tab_chapter:
